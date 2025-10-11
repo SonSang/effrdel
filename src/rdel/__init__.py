@@ -9,11 +9,11 @@ import logging
 from scipy.spatial import Delaunay
 import igl
 
-def run(input_path: str, output_path: str, verbose: bool = False, orient: bool = False):
+def run(input_verts: np.ndarray, input_faces: np.ndarray, verbose: bool = False, orient: bool = False):
     """
     Run Restricted Delaunay Triangulation on the input mesh and save the result to the output path.
     
-    @ param orient: Whether to orient face normals of the output mesh.
+    @ param orient: Whether to orient face normals of the output faces.
     """
     # Initialize Taichi
     ti_init()
@@ -21,10 +21,8 @@ def run(input_path: str, output_path: str, verbose: bool = False, orient: bool =
     logging.basicConfig(level=logging.INFO if verbose else logging.WARNING, format='%(asctime)s - %(levelname)s - %(message)s')
 
     # Load mesh
-    mesh_path = input_path
-    mesh = trimesh.load(mesh_path)
-    verts = mesh.vertices
-    faces = mesh.faces
+    verts = input_verts
+    faces = input_faces
     logging.info(f"[Mesh Loaded] #V: {verts.shape[0]}, #F: {faces.shape[0]}")
 
     # Build BVH
@@ -77,7 +75,7 @@ def run(input_path: str, output_path: str, verbose: bool = False, orient: bool =
     hit_faces = faces[hit].cpu().numpy()
     if orient:
         hit_faces = np.array(igl.bfs_orient(hit_faces)[0])
-    mesh = trimesh.base.Trimesh(vertices=_verts.cpu().numpy(), faces=hit_faces)
-    mesh.export(output_path)
     end_time = time.time()
-    logging.info(f"[Export] {end_time - start_time} sec | Saved to {output_path}")
+    logging.info(f"[Get OUTPUT Faces] {end_time - start_time} sec | #H: {hit_faces.shape[0]}")
+    
+    return hit_faces
