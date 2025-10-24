@@ -46,26 +46,31 @@ def run(input_verts: np.ndarray, input_faces: np.ndarray, verbose: bool = False,
     _tets = th.from_numpy(dt.simplices).to(dtype=th.long)
     end_time = time.time()
     logging.info(f"[Delaunay Tetrahedralization] {end_time - start_time} sec | #T: {_tets.shape[0]}")
+    
+    # Build Grid
+    start_time = time.time()
+    _verts, _tets = _verts.to(device=th.device('cuda')), _tets.to(device=th.device('cuda'))
+    grid = Grid(_verts, _tets)
+    faces_is_valid = grid.face_tet[:, 1] >= 0
+    face_tet = grid.face_tet[faces_is_valid].clone()
+    faces = grid.faces[faces_is_valid].clone()
+    del grid
+    th.cuda.empty_cache()
+    end_time = time.time()
+    logging.info(f"[Grid] {end_time - start_time} sec | #F: {len(faces)}, #T: {len(_tets)}")
+
 
     # Compute Circumcenter
     start_time = time.time()
-    _verts, _tets = _verts.to(device=th.device('cuda')), _tets.to(device=th.device('cuda'))
     tets_cc = compute_cc(_verts, _tets)
     end_time = time.time()
+    th.cuda.empty_cache()
     logging.info(f"[Circumcenter] {end_time - start_time} sec | #CC: {tets_cc.shape[0]}")
-
-    # Build Grid
-    start_time = time.time()
-    grid = Grid(_verts, _tets)
-    end_time = time.time()
-    logging.info(f"[Grid] {end_time - start_time} sec | #F: {grid.num_faces}, #T: {grid.num_tets}")
 
     # Intersect
     start_time = time.time()
-    faces_is_valid = grid.face_tet[:, 1] >= 0
-    faces = grid.faces[faces_is_valid]
-    face_cc_0 = tets_cc[grid.face_tet[faces_is_valid, 0]]
-    face_cc_1 = tets_cc[grid.face_tet[faces_is_valid, 1]]
+    face_cc_0 = tets_cc[face_tet[:, 0]]
+    face_cc_1 = tets_cc[face_tet[:, 1]]
     hit = query_segments_any_hit(face_cc_0, face_cc_1)
     end_time = time.time()
     logging.info(f"[Intersect] {end_time - start_time} sec | #H: {hit.sum()}")
